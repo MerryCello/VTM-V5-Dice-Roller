@@ -2,9 +2,12 @@ import { Component } from '@angular/core';
 
 import 'bootstrap';
 
+import { RandomService } from '../random/random.service';
+
 @Component({
     selector: 'main-comp',
     templateUrl: './main.component.html',
+    providers: [RandomService],
     styleUrls: ['./main.component.css']
 })
 export class MainComponent {
@@ -100,13 +103,16 @@ export class MainComponent {
     //keeps track of the difficulty set on the last roll, so calculations don't rely on the UI difficulty which could be changed
     difficultyWhenRolled: number;
 
-    constructor() { }
+    constructor(private rng: RandomService) { }
 
     /**
      * rolls 1d10 and returns result (1-10)
+     * @param numOfDie the number of numbers to generate
+     * @returns Array<number> if numOfDie > 1, else returns a single number
      */
-    rollDie(): number {
-        return Math.floor(Math.random() * 10) + 1;
+    async rollDie(numOfDie?): Promise<Array<number> | number> {
+        if (numOfDie < 1 || numOfDie > 10000) return 0;
+        return await this.rng.getRandom(numOfDie, 1, 10);
     }
 
     /**
@@ -114,13 +120,15 @@ export class MainComponent {
      * @param diceNum the number of dice to roll to fill the array
      * @param array the array to fill with results (numbers 1-10)
      */
-    rollArray(diceNum: number, array: Array<number>): void {
+    async rollArray(diceNum: number, array: Array<number>): Promise<void> {
         //roll dice
+        const dieRolled = await this.rollDie(diceNum)
+        // pushing to array to maintain pass-by-reference of array instead of assinging result to array directly
         for (let i = 0; i < diceNum; i++)
-            array.push(this.rollDie())
+            array.push(dieRolled[i])
 
         //sort descending (highest first)
-        array.sort(function (a, b) {
+        array.sort((a, b) => {
             if (a < b)
                 return 1;
             else if (a > b)
@@ -133,7 +141,7 @@ export class MainComponent {
     /**
      * rolls a full check- the specified number of hunger dice, and the remaining normal dice left from the pool
      */
-    rollCheck(): void {
+    async rollCheck(): Promise<void> {
         //empty previous results
         this.redDice = [];
         this.normalDice = [];
@@ -142,18 +150,18 @@ export class MainComponent {
         let rollHunger = this.hunger;
         if (this.dice < this.hunger)
             rollHunger = this.dice;
-        this.rollArray(rollHunger, this.redDice);
+        await this.rollArray(rollHunger, this.redDice);
 
         //roll remaining non-hunger dice left in pool
         let remainingDice = this.dice - this.hunger;
-        this.rollArray(remainingDice, this.normalDice)
+        await this.rollArray(remainingDice, this.normalDice)
     }
 
     /**
      * currently unused function for making single-die rouse checks
      */
-    rouseCheck(): void {
-        var dice_value = this.rollDie()
+    async rouseCheck(): Promise<void> {
+        var dice_value = await this.rollDie(1)
 
         //crit fail
         if (dice_value == 1) {
@@ -185,7 +193,7 @@ export class MainComponent {
     /**
      * main function, fully rolls dice arrays and calculates successes/image results
      */
-    evaluateResult(): void {
+    async evaluateResult(): Promise<void> {
         //reset flags to indicate new roll
         this.rolledFlag = true;
         this.currentlyRerollingFlag = false;
@@ -199,7 +207,7 @@ export class MainComponent {
             this.difficultyWhenRolled = this.difficulty;
         }
 
-        this.rollCheck();
+        await this.rollCheck();
 
         this.calculateSuccesses()
     }
@@ -207,7 +215,7 @@ export class MainComponent {
     /**
      * checks inputs to see if numbers are valid, if not gives errors, and if so passes on to generate rolls
      */
-    validate(): void {
+    async validate(): Promise<void> {
         //keep track of any validation errors
         let noErrors = true;
 
@@ -245,7 +253,7 @@ export class MainComponent {
 
         //no validation errors, pass to main function
         if (noErrors)
-            this.evaluateResult()
+            await this.evaluateResult()
     }
 
     /**
@@ -400,7 +408,7 @@ export class MainComponent {
     /**
      * user wants to reroll the normal dice they have selected
      */
-    confirmReroll(): void {
+    async confirmReroll(): Promise<void> {
         //if none chosen, reject and show error
         if (this.rerollCount === 0)
             this.noRerollCheckedFlag = true;
@@ -409,7 +417,7 @@ export class MainComponent {
             //reroll those at indicated indices
             for (let i = 0; i < this.rerollList.length; i++) {
                 if (this.rerollList[i])
-                    this.normalDice[i] = this.rollDie();
+                    this.normalDice[i] = (await this.rollDie(1)) as number;
             }
             //recalculate number of successes and switch out images if necessary
             this.calculateSuccesses();
