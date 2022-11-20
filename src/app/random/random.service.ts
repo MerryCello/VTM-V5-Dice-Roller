@@ -33,7 +33,9 @@ export class RandomService {
         format: 'plain',
         rnd: 'new'
       },
+      // @ts-ignore
       observe: 'response',
+      // @ts-ignore
       responseType: 'text'
     })
       .pipe(
@@ -42,6 +44,7 @@ export class RandomService {
       .toPromise();
 
     // convert to number[] or number
+    // @ts-ignore
     let convBody = res.body;
     if (convBody[convBody.length - 1] === '\n') {
       convBody = convBody.slice(0, -1);
